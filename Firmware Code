@@ -1,0 +1,174 @@
+#include <Wire.h>
+#include <Adafruit_ADS1X15.h>
+#include <Adafruit_INA219.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED Display Configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Sensor Objects
+Adafruit_ADS1115 ads;      // 16-bit ADC
+Adafruit_INA219 ina219;    // Current sensor
+
+// Pin Definitions
+#define RELAY_PIN 23        // Protection Relay Cutoff Pin
+const int BALANCER_PINS[4] = {16, 17, 18, 19}; // MOSFET Pins for Cell 1 to 4
+
+// Voltage Divider Ratio Parameters (Adjust based on resistor values)
+const float DIVIDER_RATIOS[4] = {1.0, 2.0, 3.0, 4.0};
+
+// Safety Thresholds
+const float OVERVOLTAGE_LIMIT = 4.20;  // Volts per cell
+const float UNDERVOLTAGE_LIMIT = 3.00; // Volts per cell
+const float BALANCING_THRESHOLD = 0.05; // 50mV cell difference threshold
+
+// System Variables
+float cellVoltages[4] = {0.0, 0.0, 0.0, 0.0};
+float totalPackVoltage = 0.0;
+float currentmA = 0.0;
+float stateOfCharge = 0.0;
+
+// Function Prototypes
+void readCellVoltages();
+void calculateSOC();
+void performCellBalancing();
+void checkProtection();
+void updateDisplay();
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  // Initialize Relay and MOSFET MOSFET Balancer Pins
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, HIGH); // Enable Load/Charger by default
+
+  for (int i = 0; i < 4; i++) {
+    pinMode(BALANCER_PINS[i], OUTPUT);
+    digitalWrite(BALANCER_PINS[i], LOW); // Disable balancing switches
+  }
+
+  // Initialize ADS1115 ADC
+  if (!ads.begin()) {
+    Serial.println("Failed to initialize ADS1115 ADC!");
+    while (1);
+  }
+
+  // Initialize INA219 Current Sensor
+  if (!ina219.begin()) {
+    Serial.println("Failed to initialize INA219!");
+    while (1);
+  }
+
+  // Initialize OLED Display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 OLED allocation failed!");
+    while (1);
+  }
+
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 20);
+  display.println("BMS Initializing...");
+  display.display();
+  delay(1500);
+}
+
+void loop() {
+  readCellVoltages();
+  calculateSOC();
+  performCellBalancing();
+  checkProtection();
+  updateDisplay();
+  
+  delay(1000);
+}
+
+void readCellVoltages() {
+  float cumulativeVoltages[4] = {0.0, 0.0, 0.0, 0.0};
+  
+  for (int i = 0; i < 4; i++) {
+    int16_t adcRaw = ads.readADC_SingleEnded(i);
+    float sensedVoltage = ads.computeVolts(adcRaw);
+    cumulativeVoltages[i] = sensedVoltage * DIVIDER_RATIOS[i];
+  }
+
+  // Calculate individual cell voltages from cumulative measurements
+  cellVoltages[0] = cumulativeVoltages[0];
+  cellVoltages[1] = cumulativeVoltages[1] - cumulativeVoltages[0];
+  cellVoltages[2] = cumulativeVoltages[2] - cumulativeVoltages[1];
+  cellVoltages[3] = cumulativeVoltages[3] - cumulativeVoltages[2];
+
+  totalPackVoltage = cumulativeVoltages[3];
+  currentmA = ina219.getCurrent_mA();
+}
+
+void calculateSOC() {
+  // Approximate SOC based on total pack voltage (4S Battery: 12.0V empty - 16.8V full)
+  float minVoltage = 12.0;
+  float maxVoltage = 16.8;
+  
+  stateOfCharge = ((totalPackVoltage - minVoltage) / (maxVoltage - minVoltage)) * 100.0;
+  if (stateOfCharge > 100.0) stateOfCharge = 100.0;
+  if (stateOfCharge < 0.0) stateOfCharge = 0.0;
+}
+
+void performCellBalancing() {
+  // Find minimum cell voltage
+  float minCellVoltage = cellVoltages[0];
+  for (int i = 1; i < 4; i++) {
+    if (cellVoltages[i] < minCellVoltage) {
+      minCellVoltage = cellVoltages[i];
+    }
+  }
+
+  // Discharge cells that exceed the minimum cell voltage by threshold limit
+  for (int i = 0; i < 4; i++) {
+    if ((cellVoltages[i] - minCellVoltage) > BALANCING_THRESHOLD && cellVoltages[i] > 3.80) {
+      digitalWrite(BALANCER_PINS[i], HIGH); // Turn ON MOSFET shunt
+    } else {
+      digitalWrite(BALANCER_PINS[i], LOW);  // Turn OFF MOSFET shunt
+    }
+  }
+}
+
+void checkProtection() {
+  bool faultTriggered = false;
+
+  for (int i = 0; i < 4; i++) {
+    if (cellVoltages[i] < UNDERVOLTAGE_LIMIT || cellVoltages[i] > OVERVOLTAGE_LIMIT) {
+      faultTriggered = true;
+      break;
+    }
+  }
+
+  if (faultTriggered) {
+    digitalWrite(RELAY_PIN, LOW); // Cutoff load via Relay
+  } else {
+    digitalWrite(RELAY_PIN, HIGH); // Normal operation
+  }
+}
+
+void updateDisplay() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  
+  display.print("V1:"); display.print(cellVoltages[0], 2);
+  display.print(" V2:"); display.println(cellVoltages[1], 2);
+  
+  display.print("V3:"); display.print(cellVoltages[2], 2);
+  display.print(" V4:"); display.println(cellVoltages[3], 2);
+  
+  display.println("---------------------");
+  display.print("Pack V: "); display.print(totalPackVoltage, 2); display.println(" V");
+  display.print("Current: "); display.print(currentmA / 1000.0, 2); display.println(" A");
+  display.print("SOC: "); display.print(stateOfCharge, 1); display.println(" %");
+  
+  display.display();
+}
