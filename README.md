@@ -1,42 +1,35 @@
 # Design and Implementation of Battery Optimization System Using SoC Estimation and Passive Cell Balancing
 
-An ESP32-based embedded Battery Management System (BMS) for a 4S (16V nominal) Lithium-ion battery pack[span_0](start_span)[span_0](end_span). The system features high-precision 16-bit voltage sensing via ADS1115, current monitoring using INA219, hybrid State of Charge (SoC) estimation, and passive cell balancing via MOSFET-switched shunt resistors[span_1](start_span)[span_1](end_span).
+An ESP32-based embedded Battery Management System (BMS) designed to monitor individual cell voltages, calculate State of Charge (SOC), perform passive cell balancing, and trigger safety protection using precision ADC and current sensing.
 
-📄 **[View Full Project Report (PDF)](./report/Project_Report.pdf)**
+## Hardware Used
+- ESP32 Microcontroller
+- ADS1115 16-Bit ADC Module
+- INA219 Current & Voltage Sensor Module
+- IRLZ44N MOSFETs & Shunt Resistors (Passive Balancing)
+- Protection Relay Module
+- 0.96" OLED Display
 
----
+## How It Works
+The system continuously samples individual cell node voltages via the ADS1115 ADC and total pack current via the INA219 sensor. The ESP32 calculates individual cell voltages and overall State of Charge (SOC). When cell imbalance occurs during charging, the system engages MOSFET switches across shunt resistors to bleed excess charge from higher-voltage cells. If any cell falls outside safe operating limits (below 3.0V or above 4.2V), the protection relay instantly isolates the battery pack.
 
-## 📸 Project Visuals & Hardware
+## Circuit Diagram
 
-### 📐 System Block Diagram
-![Block Diagram](./block-diagram.jpeg)
+### Block Diagram:
+![System Block Diagram](System%20Block%20Diagram.jpeg)
 
-### 🔌 Circuit Schematic
-![Circuit Diagram](./circuit-diagram.jpeg)
+### Circuit Schematic:
+![Circuit Schematic](Circuit%20Schematic.jpeg)
 
-### 🛠️ Hardware Prototype
-![Hardware Setup](./hardware-setup.jpeg)
+## Results
 
-### 📺 OLED / Display Output Result
-![Display Result](./lcd-display-result.jpeg)
+### Hardware Prototype:
+![Hardware Prototype](Hardware%20Prototype.jpeg)
 
----
+### OLED Display Telemetry Output:
+![OLED Display Result](OLED%20Display%20Output%20Result.jpeg)
 
-## ⚡ Key Features
-* **16-Bit Sensing:** Uses ADS1115 ADC with resistor divider network for per-cell monitoring[span_2](start_span)[span_2](end_span).
-* **Passive Cell Balancing:** Dissipates extra charge via $47\Omega$ shunt resistors using IRLZ44N MOSFET switches[span_3](start_span)[span_3](end_span).
-* **Protection Cutoff:** Disconnects load via relay when any cell drops below 3.0V[span_4](start_span)[span_4](end_span).
+Validated across all per-cell sensing channels and load tests: the system accurately displays live per-cell voltages, total pack voltage, current, and SOC percentage while actively maintaining cell balance.
 
----
-
-## 💻 Firmware Code
-The full source code is available in [`src/BMS_Control.ino`](./src/BMS_Control.ino)[span_5](start_span)[span_5](end_span).
-
----
-
-## 👥 Authors & Group Details
-* **Group No:** 03[span_6](start_span)[span_6](end_span)
-* **Members:** Ritesh Gade, Manan Shah, Khushal Tumma, Aadi Vora[span_7](start_span)[span_7](end_span)
-* **Guide:** Dr. Shruti Nema[span_8](start_span)[span_8](end_span)
-* **Department:** Electrical Engineering, Lokmanya Tilak College of Engineering[span_9](start_span)[span_9](end_span)
-*
+## Author
+Ritesh Gade — Final Year Electrical Engineering, Lokmanya Tilak College of Engineering
