@@ -27,7 +27,7 @@ The system continuously samples individual cell node voltages via the ADS1115 AD
 ![Hardware Prototype](Hardware%20Prototype.jpeg)
 
 ### OLED Display Telemetry Output:
-![OLED Display Result](OLED%20Display%20Output%20Result.jpeg)
+![OLED Display Result](OLED,%20Display%20Output%20Result.jpeg)
 
 Validated across all per-cell sensing channels and load tests: the system accurately displays live per-cell voltages, total pack voltage, current, and SOC percentage while actively maintaining cell balance.
 
